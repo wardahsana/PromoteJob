@@ -6,7 +6,7 @@ jobs:
     steps:
       - checkout
       - run: |
-          aws cloudformation deploy --template-file bucket.yml --stack-name "${CIRCLE_WORKFLOW_ID:0:7}" --parameter-overrides NAME="${CIRCLE_WORKFLOW_ID:0:7}" --region us-east-1
+          aws cloudformation deploy --template-file bucket.yml --stack-name "${CIRCLE_WORKFLOW_ID:0:7}" --parameter-overrides NAME="${CIRCLE_WORKFLOW_ID:0:7}"
       - run: aws s3 sync . s3://"${CIRCLE_WORKFLOW_ID:0:7}" --delete
 
   promote_to_production:
@@ -15,8 +15,27 @@ jobs:
     steps:
       - checkout
       - run: |
-          aws cloudformation deploy --template-file cloudformation.yml --stack-name cloudfront --parameter-overrides PipelineID="${CIRCLE_WORKFLOW_ID}"
+          aws cloudformation deploy --template-file cloudfront.yml --stack-name production-distro --parameter-overrides PipelineID="${CIRCLE_WORKFLOW_ID}"
   
+  get_last_deployment_id:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run: |
+          aws cloudformation \
+          list-exports --query "Exports[?Name==\`PipelineID\`].Value" \
+          --no-paginate --output text
+
+  clean_up_old_front_end:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run: |
+          aws s3 rm "s3://${OldPipelineID}" --recursive
+          aws cloudformation delete-stack --stack-name "${PreviousPipelineID}"
+
 workflows:
   default:
     jobs:
@@ -24,3 +43,9 @@ workflows:
       - promote_to_production:
           requires:
               - create_and_deploy_front_end
+      - get_last_deployment_id:
+          requires:
+              - promote_to_production        
+      - clean_up_old_front_end:
+          requires:
+              - get_last_deployment_id
