@@ -25,7 +25,8 @@ jobs:
       - run: |
           aws cloudformation \
           list-exports --query "Exports[?Name==\`PipelineID\`].Value" \
-          --no-paginate --output text
+          --no-paginate --output text  >> ~/output.txt
+          cat ~/output.txt
       - persist_to_workspace:
           root: ~/
           paths:
@@ -40,7 +41,7 @@ jobs:
           aws cloudformation delete-stack --stack-name ${OldPipelineID}
       - attach_workspace:
           at: ~/
-      - run: cat ~/output.txt
+      #- run: cat ~/output.txt
 workflows:
   default:
     jobs:
